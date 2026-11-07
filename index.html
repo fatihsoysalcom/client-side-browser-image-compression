@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client-Side Image Compressor</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; line-height: 1.6; color: #333; background-color: #f9f9f9; }
+        h1 { color: #2c3e50; }
+        .controls { margin-bottom: 25px; padding: 15px; background-color: #eef; border-radius: 8px; border: 1px solid #dde; }
+        .controls label, .controls input, .controls button { margin-right: 10px; margin-bottom: 10px; display: inline-block; vertical-align: middle; }
+        input[type="file"] { padding: 8px; border: 1px solid #ccc; border-radius: 4px; background-color: #fff; cursor: pointer; }
+        button { padding: 10px 18px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; transition: background-color 0.3s ease; }
+        button:hover:not(:disabled) { background-color: #0056b3; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        input[type="range"] { width: 150px; vertical-align: middle; }
+        #qualityValue { font-weight: bold; color: #007bff; }
+        .container { display: flex; gap: 30px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
+        .image-box { flex: 1; min-width: 300px; max-width: 45%; background-color: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .image-box h2 { color: #34495e; margin-top: 0; }
+        img { max-width: 100%; max-height: 300px; display: block; margin: 15px auto; border: 1px solid #eee; border-radius: 4px; object-fit: contain; }
+        p { font-size: 0.95em; color: #555; }
+        #downloadLink { display: inline-block; margin-top: 15px; padding: 10px 15px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; transition: background-color 0.3s ease; }
+        #downloadLink:hover { background-color: #218838; }
+        canvas { display: none; } /* Hidden canvas for processing */
+    </style>
+</head>
+<body>
+    <h1>Client-Side Image Compression</h1>
+    <p>This tool demonstrates how to compress images directly in your browser, without uploading them to any server. This approach enhances privacy and can improve performance by keeping data on your device.</p>
+
+    <div class="controls">
+        <input type="file" id="imageInput" accept="image/*">
+        <label for="qualityRange">Quality (0.1 - 1.0):</label>
+        <input type="range" id="qualityRange" min="0.1" max="1.0" step="0.05" value="0.7">
+        <span id="qualityValue">0.7</span>
+        <button id="compressButton" disabled>Compress Image</button>
+    </div>
+
+    <div class="container">
+        <div class="image-box">
+            <h2>Original Image</h2>
+            <img id="originalImage" src="" alt="Original Image" style="display: none;">
+            <p>Size: <span id="originalSize">N/A</span></p>
+        </div>
+        <div class="image-box">
+            <h2>Compressed Image</h2>
+            <img id="compressedImage" src="" alt="Compressed Image" style="display: none;">
+            <p>Size: <span id="compressedSize">N/A</span></p>
+            <a id="downloadLink" style="display: none;">Download Compressed</a>
+        </div>
+    </div>
+
+    <canvas id="imageCanvas"></canvas>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const compressButton = document.getElementById('compressButton');
+        const qualityRange = document.getElementById('qualityRange');
+        const qualityValueSpan = document.getElementById('qualityValue');
+        const originalImage = document.getElementById('originalImage');
+        const compressedImage = document.getElementById('compressedImage');
+        const originalSizeSpan = document.getElementById('originalSize');
+        const compressedSizeSpan = document.getElementById('compressedSize');
+        const downloadLink = document.getElementById('downloadLink');
+        const imageCanvas = document.getElementById('imageCanvas');
+        const ctx = imageCanvas.getContext('2d');
+
+        let selectedFile = null;
+        let originalFileName = 'image.jpg'; // Default for download
+
+        qualityRange.addEventListener('input', () => {
+            qualityValueSpan.textContent = qualityRange.value;
+        });
+
+        imageInput.addEventListener('change', (event) => {
+            selectedFile = event.target.files[0];
+            if (selectedFile) {
+                originalFileName = selectedFile.name;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    originalImage.src = e.target.result;
+                    originalImage.style.display = 'block';
+                    originalSizeSpan.textContent = `${(selectedFile.size / 1024).toFixed(2)} KB`;
+                    compressButton.disabled = false;
+                    compressedImage.style.display = 'none';
+                    compressedSizeSpan.textContent = 'N/A';
+                    downloadLink.style.display = 'none';
+                };
+                reader.readAsDataURL(selectedFile); // Read file as Data URL for display
+            } else {
+                originalImage.style.display = 'none';
+                originalSizeSpan.textContent = 'N/A';
+                compressButton.disabled = true;
+            }
+        });
+
+        compressButton.addEventListener('click', () => {
+            if (!selectedFile) return;
+
+            const img = new Image();
+            img.onload = () => {
+                // --- Core concept: Image processing happens client-side using Canvas API --- 
+                // Set canvas dimensions to match the original image
+                imageCanvas.width = img.width;
+                imageCanvas.height = img.height;
+                // Clear any previous drawings and draw the image onto the canvas
+                ctx.clearRect(0, 0, imageCanvas.width, imageCanvas.height);
+                ctx.drawImage(img, 0, 0, img.width, img.height);
+
+                const quality = parseFloat(qualityRange.value);
+
+                // Use canvas.toBlob() to get the compressed image as a Blob object.
+                // This method performs the compression directly in the browser's memory.
+                // The 'image/jpeg' type and 'quality' parameter control the compression.
+                imageCanvas.toBlob((blob) => {
+                    if (blob) {
+                        // Create an object URL from the Blob to display the compressed image
+                        compressedImage.src = URL.createObjectURL(blob);
+                        compressedImage.style.display = 'block';
+                        compressedSizeSpan.textContent = `${(blob.size / 1024).toFixed(2)} KB`;
+                        
+                        // Set up a download link for the compressed image
+                        downloadLink.href = URL.createObjectURL(blob);
+                        downloadLink.download = `compressed_${originalFileName}`;
+                        downloadLink.textContent = `Download compressed (${(blob.size / 1024).toFixed(2)} KB)`;
+                        downloadLink.style.display = 'block';
+
+                        // It's good practice to revoke object URLs when no longer needed to free memory.
+                        // For this simple demo, we let it persist until a new image is loaded or page closed.
+                    } else {
+                        alert('Failed to compress image. Check console for errors.');
+                    }
+                }, 'image/jpeg', quality); // Specify JPEG format and compression quality
+            };
+            img.src = originalImage.src; // Use the already loaded original image data for processing
+        });
+    </script>
+</body>
+</html>
